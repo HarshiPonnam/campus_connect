@@ -26,7 +26,7 @@ export default function Recovery({ onBack }) {
             </button>
           </>
         : <Form onSubmit={handleReset}>
-            <TextField type="email" label="Email" value={email} onChange={setEmail} />
+            <TextField type="email" label="Email" value={email} onChange={setEmail} isRequired />
             <Button type="submit">Send Reset Link</Button>
             <Button variant="secondary" onPress={onBack}>Back to Login</Button>
           </Form>
