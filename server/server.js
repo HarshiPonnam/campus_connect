@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/error.js';
 
 import authRoutes from './routes/auth.routes.js';
 import postRoutes from './routes/post.routes.js'; 
+import notificationRoutes from "./routes/notification.routes.js";
 
 const app = express();
 
@@ -23,7 +24,8 @@ app.get('/', (req, res) => {
 
 // routes
 app.use('/api/auth', authRoutes);
-app.use('/api/posts', postRoutes);               
+app.use('/api/posts', postRoutes);
+app.use("/api/notifications", notificationRoutes);               
 
 // error handler
 app.use(errorHandler);
