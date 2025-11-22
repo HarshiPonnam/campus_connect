@@ -1,22 +1,22 @@
 // server/controllers/post.controller.js
-import { Post } from '../models/Post.js';
-import { User } from '../models/User.js';
+import { Post } from "../models/Post.js";
+import { User } from "../models/User.js";
+import { Notification } from "../models/Notification.js";
 
 /**
  * Create a new post
  * POST /api/posts
  * Body: { title, body }
- * Auth: required (req.user from requireAuth)
  */
 export async function createPost(req, res, next) {
   try {
     const { title, body } = req.body || {};
-    const user = req.user; // came from auth middleware
+    const user = req.user; // from requireAuth
 
     if (!title || !body || !title.trim() || !body.trim()) {
       return res
         .status(400)
-        .json({ ok: false, error: 'title and body are required' });
+        .json({ ok: false, error: "title and body are required" });
     }
 
     const post = await Post.create({
@@ -37,6 +37,23 @@ export async function createPost(req, res, next) {
 }
 
 /**
+ * Global feed: all posts
+ * GET /api/posts/feed
+ */
+export async function getFeed(req, res, next) {
+  try {
+    const posts = await Post.find({})
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+
+    return res.json({ ok: true, data: posts });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Get a single post
  * GET /api/posts/:id
  */
@@ -46,7 +63,7 @@ export async function getPost(req, res, next) {
     const post = await Post.findById(postId).lean();
 
     if (!post) {
-      return res.status(404).json({ ok: false, error: 'Post not found' });
+      return res.status(404).json({ ok: false, error: "Post not found" });
     }
 
     return res.json({ ok: true, data: post });
@@ -56,9 +73,26 @@ export async function getPost(req, res, next) {
 }
 
 /**
+ * Get only my posts
+ * GET /api/posts/mine
+ */
+export async function getMyPosts(req, res, next) {
+  try {
+    const userId = req.user._id;
+
+    const posts = await Post.find({ author: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ ok: true, data: posts });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Edit an existing post
  * PUT /api/posts/:id
- * Body: { title?, body? }
  */
 export async function editPost(req, res, next) {
   try {
@@ -68,22 +102,17 @@ export async function editPost(req, res, next) {
 
     const post = await Post.findById(postId);
     if (!post) {
-      return res.status(404).json({ ok: false, error: 'Post not found' });
+      return res.status(404).json({ ok: false, error: "Post not found" });
     }
 
-    // Only the author can edit
     if (String(post.author) !== String(userId)) {
       return res
         .status(403)
-        .json({ ok: false, error: 'You may not edit this post' });
+        .json({ ok: false, error: "You may not edit this post" });
     }
 
-    if (title && title.trim()) {
-      post.title = title;
-    }
-    if (body && body.trim()) {
-      post.body = body;
-    }
+    if (title && title.trim()) post.title = title;
+    if (body && body.trim()) post.body = body;
     post.edited = true;
 
     await post.save();
@@ -105,14 +134,13 @@ export async function deletePost(req, res, next) {
 
     const post = await Post.findById(postId);
     if (!post) {
-      return res.status(404).json({ ok: false, error: 'Post not found' });
+      return res.status(404).json({ ok: false, error: "Post not found" });
     }
 
-    // Only the author can delete
     if (String(post.author) !== String(userId)) {
       return res
         .status(403)
-        .json({ ok: false, error: 'You may not delete this post' });
+        .json({ ok: false, error: "You may not delete this post" });
     }
 
     await post.remove();
@@ -130,16 +158,15 @@ export async function deletePost(req, res, next) {
 export async function toggleLike(req, res, next) {
   try {
     const postId = req.params.id;
-    const userId = req.user._id;
+    const user = req.user;
+    const userId = user._id;
 
     const post = await Post.findById(postId);
     if (!post) {
-      return res.status(404).json({ ok: false, error: 'Post not found' });
+      return res.status(404).json({ ok: false, error: "Post not found" });
     }
 
-    if (!Array.isArray(post.likes)) {
-      post.likes = [];
-    }
+    if (!Array.isArray(post.likes)) post.likes = [];
 
     const index = post.likes.findIndex(
       (id) => String(id) === String(userId)
@@ -149,6 +176,17 @@ export async function toggleLike(req, res, next) {
     if (index === -1) {
       post.likes.push(userId);
       liked = true;
+
+      // Notify post author (only if different user)
+      if (String(post.author) !== String(userId)) {
+        await Notification.create({
+          user: post.author,
+          fromUser: userId,
+          type: "like",
+          post: post._id,
+          message: `${user.name} liked your post "${post.title}"`,
+        });
+      }
     } else {
       post.likes.splice(index, 1);
       liked = false;
@@ -170,7 +208,7 @@ export async function toggleLike(req, res, next) {
 }
 
 /**
- * Add a comment to a post
+ * Add a comment
  * POST /api/posts/:id/comment
  * Body: { text }
  */
@@ -178,29 +216,159 @@ export async function addComment(req, res, next) {
   try {
     const postId = req.params.id;
     const { text } = req.body || {};
-    const userId = req.user._id;
+    const user = req.user;
 
     if (!text || !text.trim()) {
       return res
         .status(400)
-        .json({ ok: false, error: 'Comment text required' });
+        .json({ ok: false, error: "Comment text required" });
     }
 
     const post = await Post.findById(postId);
     if (!post) {
-      return res.status(404).json({ ok: false, error: 'Post not found' });
+      return res.status(404).json({ ok: false, error: "Post not found" });
     }
 
-    if (!Array.isArray(post.comments)) {
-      post.comments = [];
+    if (!Array.isArray(post.comments)) post.comments = [];
+
+    const newComment = {
+      user: user._id,
+      userName: user.name,
+      userEmail: user.email,
+      text,
+      replies: [],
+      createdAt: new Date(),
+    };
+
+    post.comments.push(newComment);
+    await post.save();
+
+    const comment = post.comments[post.comments.length - 1];
+
+    // Notify post author (if not same user)
+    if (String(post.author) !== String(user._id)) {
+      await Notification.create({
+        user: post.author,
+        fromUser: user._id,
+        type: "comment",
+        post: post._id,
+        commentId: comment._id,
+        message: `${user.name} commented on your post "${post.title}"`,
+      });
     }
 
-    post.comments.push({
-      userId,
+    return res.json({
+      ok: true,
+      data: {
+        postId: post._id,
+        commentsCount: post.comments.length,
+        comments: post.comments,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Reply to a comment
+ * POST /api/posts/:postId/comment/:commentId/reply
+ * Body: { text }
+ */
+export async function replyToComment(req, res, next) {
+  try {
+    const { postId, commentId } = req.params;
+    const { text } = req.body || {};
+    const user = req.user;
+
+    if (!text || !text.trim()) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Reply text required" });
+    }
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ ok: false, error: "Post not found" });
+    }
+
+    const comment = post.comments.id(commentId);
+    if (!comment) {
+      return res.status(404).json({ ok: false, error: "Comment not found" });
+    }
+
+    if (!Array.isArray(comment.replies)) comment.replies = [];
+
+    const reply = {
+      user: user._id,
+      userName: user.name,
+      userEmail: user.email,
       text,
       createdAt: new Date(),
-    });
+    };
 
+    comment.replies.push(reply);
+    await post.save();
+
+    const lastReply = comment.replies[comment.replies.length - 1];
+
+    // Notify comment owner (if not same user)
+    if (String(comment.user) !== String(user._id)) {
+      await Notification.create({
+        user: comment.user,
+        fromUser: user._id,
+        type: "reply",
+        post: post._id,
+        commentId: comment._id,
+        message: `${user.name} replied to your comment on "${post.title}"`,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        postId: post._id,
+        commentId: comment._id,
+        replies: comment.replies,
+        reply: lastReply,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Delete a comment
+ * DELETE /api/posts/:postId/comment/:commentId
+ * Only comment owner or post author may delete
+ */
+export async function deleteComment(req, res, next) {
+  try {
+    const { postId, commentId } = req.params;
+    const userId = req.user._id;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ ok: false, error: "Post not found" });
+    }
+
+    const comment = post.comments.id(commentId);
+    if (!comment) {
+      return res.status(404).json({ ok: false, error: "Comment not found" });
+    }
+
+    const isPostAuthor = String(post.author) === String(userId);
+    const isCommentAuthor = String(comment.user) === String(userId);
+
+    if (!isPostAuthor && !isCommentAuthor) {
+      return res.status(403).json({
+        ok: false,
+        error: "You may not delete this comment",
+      });
+    }
+
+    comment.deleteOne();
     await post.save();
 
     return res.json({
@@ -217,12 +385,11 @@ export async function addComment(req, res, next) {
 }
 
 /**
- * Get trending posts (simple version)
+ * Simple trending posts (by newest for now)
  * GET /api/posts/trending/all
  */
 export async function getTrendingPosts(req, res, next) {
   try {
-    // Simple: newest first. You can improve later using likes/comments.
     const posts = await Post.find({})
       .sort({ createdAt: -1 })
       .limit(20)
