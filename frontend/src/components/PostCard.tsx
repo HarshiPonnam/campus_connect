@@ -4,12 +4,14 @@ import { Button } from "../ui/Button"
 import { type Comment, Post, useAddComment, useAuthContext, useDeletePost, useEditPost, useToggleLike, useDeleteComment, useReplyToComment } from "~/api/hooks"
 import { formatDistanceToNow } from "date-fns"
 import { Form } from "~/ui/Form"
-import { MenuTrigger, TooltipTrigger } from "react-aria-components"
+import { Heading, MenuTrigger, PressEvent, TooltipTrigger } from "react-aria-components"
 import { Menu, MenuItem } from "~/ui/Menu"
-import { EllipsisVertical, Eraser, Heart, MessageCircle, Pencil, Reply } from "lucide-react"
+import { EllipsisVertical, Eraser, FlagTriangleRight, Heart, MessageCircle, Pencil, Reply } from "lucide-react"
 import { StandardErrorBox } from "~/ui/ErrorBox"
 import { Tooltip } from "~/ui/Tooltip"
 import { tv } from "tailwind-variants"
+import { Modal } from "~/ui/Modal"
+import { Dialog } from "~/ui/Dialog"
 
 const commentStyles = tv({
   base: "border border-2 shadow-md border-fuchsia-200 dark:border-stone-800 dark:bg-stone-800/50 bg-fuchsia-200/50 rounded-lg",
@@ -20,6 +22,29 @@ const commentStyles = tv({
   },
 })
 
+function ReportPopup({ open, setOpen, title, body, author, reportPressed }: { open: boolean; setOpen(open: boolean): void; title?: string; body: string; author: string; reportPressed(e: PressEvent): void }) {
+  return (
+    <Modal isDismissable isOpen={open} onOpenChange={setOpen}>
+      <Dialog>
+        <Heading slot="title" className="text-xl font-bold pb-4">Confirm report</Heading>
+
+        <div className={commentStyles()}>
+          <div className="p-4">
+            <strong>{author}</strong>
+            {title && <div className="text-lg font-bold">{title}</div>}
+            <div>{body}</div>
+          </div>
+        </div>
+
+        <div className="flex flex-col space-y-2 pt-4">
+          <Button variant="destructive" onPress={reportPressed}>Report</Button>
+          <Button variant="secondary" slot="close">Cancel</Button>
+        </div>
+      </Dialog>
+    </Modal>
+  )
+}
+
 function Comment({ post, comment }: { post: Post; comment: Comment }) {
   const auth = useAuthContext()
   const deleteComment = useDeleteComment()
@@ -27,6 +52,7 @@ function Comment({ post, comment }: { post: Post; comment: Comment }) {
   const canEdit = auth.user?.user.id === comment.user
   const [isReplying, setIsReplying] = useState(false)
   const [replyText, setReplyText] = useState("")
+  const [reportOpen, setReportOpen] = useState(false)
 
   const handleSubmitReply = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -55,9 +81,11 @@ function Comment({ post, comment }: { post: Post; comment: Comment }) {
           <Menu>
             <MenuItem isDisabled={!canEdit} onAction={() => deleteComment.mutate({ postId: post._id, commentId: comment._id })}><Eraser size={16} /> Delete</MenuItem>
             <MenuItem onAction={() => setIsReplying(true)}><Reply size={16} /> Reply</MenuItem>
+            <MenuItem onAction={() => setReportOpen(true)}><FlagTriangleRight size={16} /> Report</MenuItem>
           </Menu>
         </MenuTrigger>
       </div>
+      <ReportPopup open={reportOpen} setOpen={setReportOpen} body={comment.text} author={comment.userName} reportPressed={() => setReportOpen(false)} />
       <div className="p-2">
         {comment.text}
       </div>
@@ -105,6 +133,7 @@ export default function PostCard({ post }: { post: Post }) {
   const [titleText, setTitleText] = useState(post.title)
   const [bodyText, setBodyText] = useState(post.body)
   const [commentText, setCommentText] = useState("")
+  const [reportOpen, setReportOpen] = useState(false)
   const canEdit = auth.user?.user.id === post.author
 
   const editPost = useEditPost()
@@ -167,9 +196,12 @@ export default function PostCard({ post }: { post: Post }) {
           <Menu>
             <MenuItem isDisabled={!canEdit} onAction={() => edit()}><Pencil size={16} /> Edit</MenuItem>
             <MenuItem isDisabled={!canEdit} onAction={() => deletePost.mutate({ id: post._id })}><Eraser size={16} /> Delete</MenuItem>
+            <MenuItem onAction={() => setReportOpen(true)}><FlagTriangleRight size={16} /> Report</MenuItem>
           </Menu>
         </MenuTrigger>
       </div>
+
+      <ReportPopup open={reportOpen} setOpen={setReportOpen} title={post.title} body={post.body} author={post.authorName} reportPressed={() => setReportOpen(false)} />
 
       {isEditing ? (
         <Form onSubmit={handleSubmit} className="p-4 pt-0">
