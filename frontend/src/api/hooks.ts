@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { createContext, useContext } from "react"
-import { array, BaseIssue, BaseSchema, boolean, is, isoTimestamp, literal, number, optional, parse, pipe, safeParse, strictObject, string, transform, union, unknown } from "valibot"
+import { array, BaseIssue, BaseSchema, boolean, is, isoTimestamp, literal, nullable, number, optional, parse, pipe, safeParse, strictObject, string, transform, union, unknown } from "valibot"
 
 export type AuthContext = {
   user: {
@@ -693,4 +693,79 @@ export const Auth = createContext<AuthContext>(null!)
 
 export function useAuthContext() {
   return useContext(Auth)
+}
+
+export type Report = {
+  _id: string
+  type: "post" | "comment" | "user"
+  post: string | null
+  commentId: string | null
+  reportedUser: string | null
+  reportedBy: string | null
+  reason: string | null
+  status: "pending" | "reviewed" | "dismissed" | null
+  createdAt: Date
+  updatedAt: Date
+  __v: unknown
+}
+
+const report = strictObject({
+  _id: string(),
+  type: union([literal('post'), literal('comment'), literal('user')]),
+  post: nullable(string()),
+  commentId: nullable(string()),
+  reportedUser: nullable(string()),
+  reportedBy: nullable(string()),
+  reason: nullable(string()),
+  status: nullable(union([literal('pending'), literal('reviewed'), literal('dismissed')])),
+  createdAt: parseDate,
+  updatedAt: parseDate,
+  __v: unknown(),
+})
+
+export type ReportPostRequest = {
+  id: string
+  reason?: string
+}
+
+export type ReportPostResponse = Report
+
+const reportPostResponse = response(report)
+
+export function useReportPost() {
+  const auth = useAuthContext()
+
+  return useMutation({
+    mutationFn: ({ id, ...data }: ReportPostRequest): Promise<OkResponse<ReportPostResponse>> => api({
+      endpoint: `/reports/post/${id}`,
+      schema: reportPostResponse,
+      authContext: auth,
+      method: "POST",
+      body: data,
+    }),
+  })
+}
+
+export type ReportCommentRequest = {
+  postId: string
+  commentId: string
+  reason?: string
+}
+
+export type ReportCommentResponse = Report
+
+const reportCommentResponse = response(report)
+
+export function useReportComment() {
+  const auth = useAuthContext()
+
+  return useMutation({
+    mutationFn: ({ postId, commentId, ...data }: ReportCommentRequest): Promise<OkResponse<ReportCommentResponse>> => api({
+      endpoint: `/report/posts/${postId}/comment/${commentId}`,
+      schema: reportCommentResponse,
+      authContext: auth,
+      method: "POST",
+      body: data,
+    }),
+  })
 }

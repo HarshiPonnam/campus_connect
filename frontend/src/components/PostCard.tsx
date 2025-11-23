@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react"
 import { TextAreaField, TextField } from "../ui/TextField"
 import { Button } from "../ui/Button"
-import { type Comment, Post, useAddComment, useAuthContext, useDeletePost, useEditPost, useToggleLike, useDeleteComment, useReplyToComment } from "~/api/hooks"
+import { type Comment, Post, useAddComment, useAuthContext, useDeletePost, useEditPost, useToggleLike, useDeleteComment, useReplyToComment, useReportComment, useReportPost } from "~/api/hooks"
 import { formatDistanceToNow } from "date-fns"
 import { Form } from "~/ui/Form"
 import { Heading, MenuTrigger, PressEvent, TooltipTrigger } from "react-aria-components"
@@ -12,6 +12,7 @@ import { Tooltip } from "~/ui/Tooltip"
 import { tv } from "tailwind-variants"
 import { Modal } from "~/ui/Modal"
 import { Dialog } from "~/ui/Dialog"
+import { UseMutationResult } from "@tanstack/react-query"
 
 const commentStyles = tv({
   base: "border border-2 shadow-md border-fuchsia-200 dark:border-stone-800 dark:bg-stone-800/50 bg-fuchsia-200/50 rounded-lg",
@@ -22,7 +23,19 @@ const commentStyles = tv({
   },
 })
 
-function ReportPopup({ open, setOpen, title, body, author, reportPressed }: { open: boolean; setOpen(open: boolean): void; title?: string; body: string; author: string; reportPressed(e: PressEvent): void }) {
+function ReportPopup<const TResponse>({ open, setOpen, title, body, author, submitReport, mutation }: { open: boolean; setOpen(open: boolean): void; title?: string; body: string; author: string; submitReport(e: string): Promise<void>, mutation: UseMutationResult<unknown, Error, TResponse, unknown> }) {
+  const [reasonText, setReasonText] = useState("")
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!e.currentTarget.checkValidity()) {
+      return
+    }
+
+    await submitReport(reasonText)
+    setReasonText("")
+    setOpen(false)
+  }
+
   return (
     <Modal isDismissable isOpen={open} onOpenChange={setOpen}>
       <Dialog>
@@ -36,10 +49,21 @@ function ReportPopup({ open, setOpen, title, body, author, reportPressed }: { op
           </div>
         </div>
 
-        <div className="flex flex-col space-y-2 pt-4">
-          <Button variant="destructive" onPress={reportPressed}>Report</Button>
+        <Form onSubmit={handleSubmit} className="flex flex-col space-y-2 pt-4">
+          <TextAreaField
+            placeholder="Write a reason for the report. (Optional)"
+            value={reasonText}
+            onChange={setReasonText}
+            isRequired
+            isDisabled={mutation.isPending}
+          />
+
+          <Button variant="destructive" type="submit" isPending={mutation.isPending}>Report</Button>
           <Button variant="secondary" slot="close">Cancel</Button>
-        </div>
+
+          <StandardErrorBox explanation="Failed to submit report" error={mutation.error} />
+        </Form>
+
       </Dialog>
     </Modal>
   )
@@ -49,6 +73,7 @@ function Comment({ post, comment }: { post: Post; comment: Comment }) {
   const auth = useAuthContext()
   const deleteComment = useDeleteComment()
   const replyToComment = useReplyToComment()
+  const reportComment = useReportComment()
   const canEdit = auth.user?.user.id === comment.user
   const [isReplying, setIsReplying] = useState(false)
   const [replyText, setReplyText] = useState("")
@@ -69,6 +94,10 @@ function Comment({ post, comment }: { post: Post; comment: Comment }) {
     setIsReplying(false)
   }
 
+  const handleReportComment = async (e: string) => {
+    await reportComment.mutateAsync({ postId: post._id, commentId: comment._id, reason: e })
+  }
+
   return (
     <div className={commentStyles({ isPending: deleteComment.isPending || deleteComment.isSuccess })}>
       <div className="p-2 pb-0 flex flex-row justify-between items-center">
@@ -85,7 +114,7 @@ function Comment({ post, comment }: { post: Post; comment: Comment }) {
           </Menu>
         </MenuTrigger>
       </div>
-      <ReportPopup open={reportOpen} setOpen={setReportOpen} body={comment.text} author={comment.userName} reportPressed={() => setReportOpen(false)} />
+      <ReportPopup open={reportOpen} setOpen={setReportOpen} body={comment.text} author={comment.userName} submitReport={e => handleReportComment(e)} mutation={reportComment} />
       <div className="p-2">
         {comment.text}
       </div>
@@ -140,6 +169,7 @@ export default function PostCard({ post }: { post: Post }) {
   const deletePost = useDeletePost()
   const likePost = useToggleLike()
   const addComment = useAddComment()
+  const reportPost = useReportPost()
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -181,6 +211,10 @@ export default function PostCard({ post }: { post: Post }) {
     setIsEditing(true)
   }
 
+  const handleReportPost = async (e: string) => {
+    await reportPost.mutateAsync({ id: post._id, reason: e })
+  }
+
   const changePending = editPost.isPending || deletePost.isPending || likePost.isPending
 
   return (
@@ -201,7 +235,7 @@ export default function PostCard({ post }: { post: Post }) {
         </MenuTrigger>
       </div>
 
-      <ReportPopup open={reportOpen} setOpen={setReportOpen} title={post.title} body={post.body} author={post.authorName} reportPressed={() => setReportOpen(false)} />
+      <ReportPopup open={reportOpen} setOpen={setReportOpen} title={post.title} body={post.body} author={post.authorName} submitReport={e => handleReportPost(e)} mutation={reportPost} />
 
       {isEditing ? (
         <Form onSubmit={handleSubmit} className="p-4 pt-0">
