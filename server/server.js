@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.routes.js';
 import postRoutes from './routes/post.routes.js'; 
 import notificationRoutes from "./routes/notification.routes.js";
 import userRoutes from './routes/user.routes.js';
+import reportRoutes from './routes/report.routes.js';
 
 const app = express();
 
@@ -28,12 +29,13 @@ app.use('/api/auth', authRoutes);
 app.use("/api/notifications", notificationRoutes);               
 app.use('/api/posts', postRoutes);               
 app.use('/api/users', userRoutes);
+app.use('/api/reports', reportRoutes);
 
 // error handler
 app.use(errorHandler);
 
 // start
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5050;
 const MONGO_URI = process.env.MONGO_URI;
 
 (async () => {
