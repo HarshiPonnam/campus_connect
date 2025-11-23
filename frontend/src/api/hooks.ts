@@ -301,7 +301,6 @@ const comment = strictObject({
   text: string(),
   createdAt: parseDate,
   replies: array(reply),
-  meow: string(),
 })
 
 const post = strictObject({
