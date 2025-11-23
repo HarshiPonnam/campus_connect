@@ -137,13 +137,15 @@ export async function deletePost(req, res, next) {
       return res.status(404).json({ ok: false, error: "Post not found" });
     }
 
+    // Only the author can delete the post
     if (String(post.author) !== String(userId)) {
       return res
         .status(403)
         .json({ ok: false, error: "You may not delete this post" });
     }
 
-    await post.remove();
+    // Mongoose 7+: use deleteOne instead of remove
+    await post.deleteOne();
 
     return res.json({ ok: true, data: post });
   } catch (err) {
