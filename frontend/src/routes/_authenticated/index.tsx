@@ -44,9 +44,9 @@ function RouteComponent() {
         </Button>
       </nav>
 
-      <div className="flex flex-col lg:w-full lg:max-w-lg lg:mx-auto py-6">
+      <div className="flex flex-col lg:w-full lg:max-w-2xl lg:mx-auto py-6">
         {/* Post creation form */}
-        <CreatePostForm onPost={handleAddPost} />
+        <CreatePostForm />
 
         <StandardErrorBox error={error} explanation="Failed to load trending posts" className="mt-12" />
 
@@ -61,11 +61,8 @@ function RouteComponent() {
             ) : (
               data.data.map((p) => (
                 <PostCard
-                  key={p.id}
+                  key={p._id}
                   post={p}
-                  canEdit={p.author === auth.user!.user.name}
-                  onDelete={() => handleDelete(p.id)}
-                  onEdit={(newText: string) => handleEdit(p.id, newText)}
                 />
               ))
             )}

@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { createContext, useContext } from "react"
-import { array, BaseIssue, BaseSchema, boolean, date, is, isoTimestamp, literal, never, number, parse, pipe, safeParse, strictObject, string, transform, union, unknown } from "valibot"
+import { array, BaseIssue, BaseSchema, boolean, is, isoTimestamp, literal, number, parse, pipe, safeParse, strictObject, string, transform, union, unknown } from "valibot"
 
 export type AuthContext = {
   user: {
@@ -257,17 +257,51 @@ export type Post = {
   author: string
   authorName: string
   authorEmail: string
-  likes: unknown[]
-  comments: {
-    userId: string
-    text: string
-    createdAt: Date
-  }[]
+  likes: string[]
+  comments: Comment[]
   tags: string[]
   edited: boolean
   createdAt: Date
   updatedAt: Date
 }
+
+export type Reply = {
+  _id: string
+  user: string
+  userName: string
+  userEmail: string
+  text: string
+  createdAt: Date
+}
+
+const reply = strictObject({
+  _id: string(),
+  user: string(),
+  userName: string(),
+  userEmail: string(),
+  text: string(),
+  createdAt: parseDate,
+})
+
+export type Comment = {
+  _id: string
+  user: string
+  userName: string
+  userEmail: string
+  text: string
+  createdAt: Date
+  replies: Reply[]
+}
+
+const comment = strictObject({
+  _id: string(),
+  user: string(),
+  userName: string(),
+  userEmail: string(),
+  text: string(),
+  createdAt: parseDate,
+  replies: array(reply),
+})
 
 const post = strictObject({
   _id: string(),
@@ -276,12 +310,8 @@ const post = strictObject({
   author: string(),
   authorName: string(),
   authorEmail: string(),
-  likes: array(never()),
-  comments: array(strictObject({
-    userId: string(),
-    text: string(),
-    createdAt: parseDate,
-  })),
+  likes: array(string()),
+  comments: array(comment),
   tags: array(string()),
   edited: boolean(),
   createdAt: parseDate,
@@ -418,13 +448,13 @@ export type AddCommentRequest = {
 export type AddCommentResponse = {
   postId: string
   commentsCount: number
-  comments: unknown[]
+  comments: Comment[]
 }
 
 const addCommentResponse = response(strictObject({
   postId: string(),
   commentsCount: number(),
-  comments: array(never()),
+  comments: array(comment),
 }))
 
 export function useAddComment() {
@@ -453,15 +483,15 @@ export type ReplyToCommentRequest = {
 export type ReplyToCommentResponse = {
   postId: string
   commentId: string
-  replies: unknown[]
-  reply: unknown
+  replies: Reply[]
+  reply: Reply
 }
 
 const replyToCommentResponse = response(strictObject({
   postId: string(),
   commentId: string(),
-  replies: array(never()),
-  reply: never(),
+  replies: array(reply),
+  reply: reply,
 }))
 
 export function useReplyToComment() {
@@ -495,7 +525,7 @@ export type DeleteCommentResponse = {
 const deleteCommentResponse = response(strictObject({
   postId: string(),
   commentsCount: number(),
-  comments: array(never()),
+  comments: array(comment),
 }))
 
 export function useDeleteComment() {
@@ -506,8 +536,11 @@ export function useDeleteComment() {
       endpoint: `/posts/${postId}/comment/${commentId}`,
       schema: deleteCommentResponse,
       authContext: auth,
-      method: "POST",
-    })
+      method: "DELETE",
+    }),
+    onSuccess(_data, _variables, _result, context) {
+      context.client.invalidateQueries({ queryKey: ['posts'] })
+    },
   })
 }
 
