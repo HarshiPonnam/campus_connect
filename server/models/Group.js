@@ -1,3 +1,4 @@
+// server/models/Group.js
 import mongoose from 'mongoose';
 
 const groupSchema = new mongoose.Schema(
@@ -20,10 +21,21 @@ const groupSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    members: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   {
     timestamps: true,
   }
 );
 
-export const Group = mongoose.model('Group', groupSchema);
+// Create the model ONCE
+const Group = mongoose.model('Group', groupSchema);
+
+// Export it BOTH ways so your controllers can use either style
+export default Group;
+export { Group };
