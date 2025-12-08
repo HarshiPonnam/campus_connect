@@ -1,43 +1,17 @@
-import { useState } from "react";
 import { Button } from "../ui/Button";
+import { useToggleBlock } from "~/api/hooks";
 
 interface BlockButtonProps {
   userId: string;        // the user to block/unblock
   blockedUsers: string[]; // array of currently blocked user IDs
-  token: string;
-  onChange?: (blocked: boolean) => void; // optional callback
 }
 
-export default function BlockButton({ userId, blockedUsers, token, onChange }: BlockButtonProps) {
-  const [loading, setLoading] = useState(false);
-  const [isBlocked, setIsBlocked] = useState(blockedUsers.includes(userId));
-
-  const toggleBlock = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`http://localhost:5050/api/users/${userId}/block`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-      });
-
-      const json = await res.json();
-      if (json.ok) {
-        setIsBlocked(json.data.blocked);
-        if (onChange) onChange(json.data.blocked);
-      } else {
-        console.error(json.error);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-    setLoading(false);
-  };
+export default function BlockButton({ userId, blockedUsers }: BlockButtonProps) {
+  const isBlocked = blockedUsers.includes(userId)
+  const toggleBlock = useToggleBlock()
 
   return (
-    <Button variant="secondary" isPending={loading} onPress={toggleBlock}>
+    <Button variant="secondary" isPending={toggleBlock.isPending} onPress={() => toggleBlock.mutate({ id: userId })}>
       {isBlocked ? "Unblock" : "Block"}
     </Button>
   );

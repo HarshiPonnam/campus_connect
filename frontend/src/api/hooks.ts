@@ -55,7 +55,9 @@ function response<const TData extends BaseSchema<unknown, unknown, BaseIssue<unk
   ])
 }
 
-const endpoint = 'http://localhost:5050/api'
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:5050'
+
+const endpoint = `${API_BASE}/api`
 
 interface BaseApiOptions<TOutput extends { ok: boolean }> {
   endpoint: string
@@ -767,5 +769,206 @@ export function useReportComment() {
       method: "POST",
       body: data,
     }),
+  })
+}
+
+export type ToggleBlockRequest = {
+  id: string
+}
+
+export type ToggleBlockResponse = {
+  blocked: boolean
+  blockedUserId: string
+}
+
+const toggleBlock = strictObject({
+  blocked: boolean(),
+  blockedUserId: string(),
+})
+
+const toggleBlockResponse = response(toggleBlock)
+
+export function useToggleBlock() {
+  const auth = useAuthContext()
+
+  return useMutation({
+    mutationFn: ({ id }: ToggleBlockRequest): Promise<OkResponse<ToggleBlockResponse>> => api({
+      endpoint: `/users/${id}/block`,
+      schema: toggleBlockResponse,
+      authContext: auth,
+      method: "POST",
+    }),
+    onSuccess(_data, _variables, _result, context) {
+      context.client.invalidateQueries({ queryKey: ['posts'] })
+    },
+  })
+}
+
+export type Group = {
+  _id: string
+  name: string
+  description: string
+  isPublic: boolean
+  createdBy: string
+  members: string[]
+  createdAt: Date
+  updatedAt: Date
+  __v: unknown
+}
+
+const group = strictObject({
+  _id: string(),
+  name: string(),
+  description: string(),
+  isPublic: boolean(),
+  createdBy: string(),
+  members: array(string()),
+  createdAt: parseDate,
+  updatedAt: parseDate,
+  __v: unknown(),
+})
+
+export type ListGroupsResponse = Group[]
+
+const listGroupsResponse = response(array(group))
+
+export function useListGroups() {
+  const auth = useAuthContext()
+
+  return useQuery({
+    queryKey: ['groups'],
+    queryFn: (): Promise<OkResponse<ListGroupsResponse>> => api({
+      endpoint: `/groups`,
+      schema: listGroupsResponse,
+      authContext: auth,
+      method: "GET",
+    }),
+  })
+}
+
+export type CreateGroupRequest = {
+  name: string
+  description: string
+  isPublic: boolean
+}
+
+export type CreateGroupResponse = Group
+
+const createGroupResponse = response(group)
+
+export function useCreateGroup() {
+  const auth = useAuthContext()
+
+  return useMutation({
+    mutationFn: (data: CreateGroupRequest): Promise<OkResponse<CreateGroupResponse>> => api({
+      endpoint: `/groups`,
+      schema: createGroupResponse,
+      authContext: auth,
+      method: "POST",
+      body: data,
+    }),
+    onSuccess(_data, _variables, _result, context) {
+      context.client.invalidateQueries({ queryKey: ['groups'] })
+    },
+  })
+}
+
+export type MyGroupsResponse = Group[]
+
+const myGroupsResponse = response(array(group))
+
+export function useListMyGroups() {
+  const auth = useAuthContext()
+
+  return useQuery({
+    queryKey: ['groups', 'mine'],
+    queryFn: (): Promise<OkResponse<MyGroupsResponse>> => api({
+      endpoint: `/groups/mine`,
+      schema: myGroupsResponse,
+      authContext: auth,
+      method: "GET",
+    }),
+  })
+}
+
+export type GetGroupRequest = {
+  id: string
+}
+
+export type GetGroupResponse = Group
+
+const getGroupResponse = response(group)
+
+export function useGetGroup(id: string) {
+  const auth = useAuthContext()
+
+  return useQuery({
+    queryKey: ['groups', 'one', id] as const,
+    queryFn: ({ queryKey }): Promise<OkResponse<GetGroupResponse>> => api({
+      endpoint: `/groups/${queryKey[1]}`,
+      schema: getGroupResponse,
+      authContext: auth,
+      method: "GET",
+    }),
+  })
+}
+
+const responseVoid = union([
+  strictObject({
+    ok: literal(true),
+  }),
+  strictObject({
+    ok: literal(false),
+    error: string(),
+  }),
+])
+
+type OkVoidResponse = { ok: true }
+
+export type DeleteGroupRequest = {
+  id: string
+}
+
+export type DeleteGroupResponse = void
+
+export function useDeleteGroup() {
+  const auth = useAuthContext()
+
+  return useMutation({
+    mutationFn: ({ id }: DeleteGroupRequest): Promise<OkVoidResponse> => api({
+      endpoint: `/groups/${id}`,
+      schema: responseVoid,
+      authContext: auth,
+      method: "DELETE",
+    }),
+    onSuccess(_data, _variables, _result, context) {
+      context.client.invalidateQueries({ queryKey: ['groups'] })
+    },
+  })
+}
+
+export type AddGroupMemberRequest = {
+  id: string
+  email: string
+}
+
+export type AddGroupMemberResponse = Group
+
+const addGroupMemberResponse = response(group)
+
+export function useAddGroupMember() {
+  const auth = useAuthContext()
+
+  return useMutation({
+    mutationFn: ({ id, ...data }: AddGroupMemberRequest): Promise<OkResponse<AddGroupMemberResponse>> => api({
+      endpoint: `/groups/${id}/members`,
+      schema: addGroupMemberResponse,
+      authContext: auth,
+      method: "POST",
+      body: data,
+    }),
+    onSuccess(_data, _variables, _result, context) {
+      context.client.invalidateQueries({ queryKey: ['groups'] })
+    },
   })
 }

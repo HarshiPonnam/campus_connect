@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react"
 import { TextAreaField, TextField } from "../ui/TextField"
 import { Button } from "../ui/Button"
-import { type Comment, Post, useAddComment, useAuthContext, useDeletePost, useEditPost, useToggleLike, useDeleteComment, useReplyToComment, useReportComment, useReportPost } from "~/api/hooks"
+import { type Comment, Post, useAddComment, useAuthContext, useDeletePost, useEditPost, useToggleLike, useDeleteComment, useReplyToComment, useReportComment, useReportPost, useToggleBlock } from "~/api/hooks"
 import { formatDistanceToNow } from "date-fns"
 import { Form } from "~/ui/Form"
 import { Heading, MenuTrigger, TooltipTrigger } from "react-aria-components"
@@ -155,7 +155,9 @@ function Comment({ post, comment }: { post: Post; comment: Comment }) {
   )
 }
 
-function BlockPopup({ open, setOpen, authorName, authorId, onConfirm }: { open: boolean; setOpen(open: boolean): void; authorName: string; authorId: string; onConfirm(id: string): void }) {
+function BlockPopup({ open, setOpen, authorName, authorId }: { open: boolean; setOpen(open: boolean): void; authorName: string; authorId: string }) {
+  const blockUser = useToggleBlock()
+
   return (
     <Modal isDismissable isOpen={open} onOpenChange={setOpen}>
       <Dialog>
@@ -171,8 +173,8 @@ function BlockPopup({ open, setOpen, authorName, authorId, onConfirm }: { open: 
         </div>
 
         <div className="flex flex-col space-y-2 pt-4">
-          <Button variant="destructive" onPress={() => onConfirm(authorId)}>
-            Confirm Block
+          <Button variant="destructive" onPress={() => blockUser.mutate({ id: authorId })} isPending={blockUser.isPending}>
+            Block User
           </Button>
           <Button variant="secondary" slot="close">
             Cancel
@@ -246,30 +248,6 @@ export default function PostCard({ post }: { post: Post }) {
   const changePending = editPost.isPending || deletePost.isPending || likePost.isPending
 
   const [blockOpen, setBlockOpen] = useState(false);
-
-  const toggleBlockUser = async (authorId: string) => {
-  try {
-    const token = auth.user?.token;    
-    const res = await fetch(`http://localhost:5050/api/users/${authorId}/block`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      console.error(json.error);
-    } else {
-      console.log(json.data.blocked ? "User blocked" : "User unblocked");
-      //Optional: update local auth state if you keep blockedUsers locally
-      //auth.user!.user.blockedUsers = json.data.blockedUsers;
-    }
-  } catch (err) {
-    console.error(err);
-  }
-    return;
-} 
   
   return (
     <div className="border border-2 shadow-md border-fuchsia-200 dark:border-stone-800 dark:bg-stone-800/50 bg-fuchsia-200/50 rounded-lg">
@@ -292,7 +270,7 @@ export default function PostCard({ post }: { post: Post }) {
       </div>
 
       <ReportPopup open={reportOpen} setOpen={setReportOpen} title={post.title} body={post.body} author={post.authorName} submitReport={e => handleReportPost(e)} mutation={reportPost} />
-      <BlockPopup open={blockOpen} setOpen={setBlockOpen} authorName={post.authorName} authorId={post.author} onConfirm={id => { setBlockOpen(false); toggleBlockUser(id); }} />
+      <BlockPopup open={blockOpen} setOpen={setBlockOpen} authorName={post.authorName} authorId={post.author} />
       
       {isEditing ? (
         <Form onSubmit={handleSubmit} className="p-4 pt-0">

@@ -11,7 +11,6 @@ export const Route = createFileRoute('/_unauthenticated/login/email')({
 })
 
 function RouteComponent() {
-  const { auth } = Route.useRouteContext()
   const navigate = Route.useNavigate()
   const search = Route.useSearch()
 

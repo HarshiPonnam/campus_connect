@@ -1,127 +1,49 @@
 // src/components/CreateGroupForm.tsx
-import React, { useState, FormEvent } from 'react';
-
-const API_BASE =
-  ((import.meta as any).env?.VITE_API_BASE as string | undefined) ??
-  'http://localhost:5050';
+import { useState, FormEvent, useContext } from 'react';
+import { Heading, OverlayTriggerStateContext } from 'react-aria-components';
+import { useCreateGroup } from '~/api/hooks';
+import { Button } from '~/ui/Button';
+import { Checkbox } from '~/ui/Checkbox';
+import { Dialog } from '~/ui/Dialog';
+import { StandardErrorBox } from '~/ui/ErrorBox';
+import { Form } from '~/ui/Form';
+import { Modal } from '~/ui/Modal';
+import { TextAreaField, TextField } from '~/ui/TextField';
 
 export function CreateGroupForm() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
-  const [status, setStatus] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const createGroup = useCreateGroup()
+  const dialogState = useContext(OverlayTriggerStateContext)
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setStatus(null);
-
-    if (!name.trim()) {
-      setStatus('Group name is required.');
-      return;
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!e.currentTarget.checkValidity()) {
+      return
     }
 
-    try {
-      setSubmitting(true);
-
-      // this assumes login stored the JWT token in localStorage
-      const auth = localStorage.getItem('auth');
-      const token = auth ? JSON.parse(auth).token : null;
-      if (!token) {
-        setStatus('You must be logged in to create a group.');
-        return;
-      }
-
-      const resp = await fetch(`${API_BASE}/api/groups`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim(),
-          isPublic,
-        }),
-      });
-
-      const data = await resp.json();
-
-      if (!resp.ok || !data.ok) {
-        setStatus(data.error || 'Failed to create group.');
-        return;
-      }
-
-      setStatus('Group created successfully!');
-      setName('');
-      setDescription('');
-      setIsPublic(true);
-    } catch (err) {
-      console.error(err);
-      setStatus('Something went wrong while creating the group.');
-    } finally {
-      setSubmitting(false);
-    }
+    await createGroup.mutateAsync({
+      name,
+      description,
+      isPublic,
+    })
+    dialogState?.close()
   }
 
   return (
-    <div style={{ maxWidth: 600, margin: '2rem auto' }}>
-      <h2 style={{ marginBottom: '1rem' }}>Create a New Group</h2>
+    <Modal isDismissable>
+      <Dialog>
+        <Heading slot="title" className="text-xl font-bold pb-4">Create a new group</Heading>
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        <label>
-          Group name
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="CS Freshman Hangout"
-            style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
-          />
-        </label>
-
-        <label>
-          Description
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe what this group is for"
-            rows={3}
-            style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
-          />
-        </label>
-
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-          <input
-            type="checkbox"
-            checked={isPublic}
-            onChange={(e) => setIsPublic(e.target.checked)}
-          />
-          Make this group public (discoverable to others)
-        </label>
-
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{
-            marginTop: '1rem',
-            padding: '0.75rem',
-            backgroundColor: '#ff00ff',
-            border: 'none',
-            color: 'white',
-            cursor: 'pointer',
-            fontWeight: 600,
-          }}
-        >
-          {submitting ? 'Creating...' : 'Create Group'}
-        </button>
-
-        {status && (
-          <div style={{ marginTop: '0.75rem', color: 'white' }}>
-            {status}
-          </div>
-        )}
-      </form>
-    </div>
+        <Form onSubmit={handleSubmit}>
+          <TextField label="Group name" placeholder="CS Freshman Hangout" value={name} onChange={setName} isRequired isDisabled={createGroup.isPending} />
+          <TextAreaField label="Description" placeholder="Describe your group in a few words" value={description} onChange={setDescription} isDisabled={createGroup.isPending} />
+          <Checkbox isSelected={isPublic} onChange={setIsPublic} isDisabled={createGroup.isPending}>Should this group be public and discoverable to others?</Checkbox>
+          <Button isPending={createGroup.isPending} type="submit">Create group</Button>
+          <StandardErrorBox explanation="Failed to create a group" error={createGroup.error} />
+        </Form>
+      </Dialog>
+    </Modal>
   );
 }
