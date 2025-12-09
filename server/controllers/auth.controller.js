@@ -75,6 +75,10 @@ export async function login(req, res, next) {
     const user = await User.findOne({ email: String(email).toLowerCase() });
     if (!user) return res.status(401).json({ ok: false, error: 'Invalid credentials' });
 
+    if (user.isDeleted) {
+    return res.status(403).json({ ok: false, error: 'This account has been deactivated.' });
+    }
+
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ ok: false, error: 'Invalid credentials' });
 
