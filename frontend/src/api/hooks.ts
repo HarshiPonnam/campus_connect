@@ -1008,3 +1008,76 @@ export function useAddGroupMember() {
     },
   })
 }
+
+export type GroupMessage = {
+  _id: string
+  group: string
+  sender: {
+    _id: string
+    name: string
+    email: string
+  }
+  text: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+const groupMessage = strictObject({
+  _id: string(),
+  group: string(),
+  sender: strictObject({
+    _id: string(),
+    name: string(),
+    email: string(),
+  }),
+  text: string(),
+  createdAt: parseDate,
+  updatedAt: parseDate,
+  __v: unknown(),
+})
+
+
+export type GetGroupMessagesResponse = GroupMessage[]
+
+const getGroupMessagesResponse = response(array(groupMessage))
+
+export function useGetGroupMessages(id: string) {
+  const auth = useAuthContext()
+
+  return useQuery({
+    queryKey: ['groups', 'one', id, 'messages'] as const,
+    queryFn: ({ queryKey }): Promise<OkResponse<GetGroupMessagesResponse>> => api({
+      endpoint: `/groups/${queryKey[2]}/messages`,
+      schema: getGroupMessagesResponse,
+      authContext: auth,
+      method: "GET",
+    }),
+  })
+}
+
+export type CreateGroupMessageRequest = {
+  id: string
+
+  text: string
+}
+
+export type CreateGroupMessageResponse = GroupMessage
+
+const createGroupMessageResponse = response(groupMessage)
+
+export function useCreateGroupMessage() {
+  const auth = useAuthContext()
+
+  return useMutation({
+    mutationFn: ({ id, ...data }: CreateGroupMessageRequest): Promise<OkResponse<CreateGroupMessageResponse>> => api({
+      endpoint: `/groups/${id}/messages`,
+      schema: createGroupMessageResponse,
+      authContext: auth,
+      method: "POST",
+      body: data,
+    }),
+    onSuccess(_data, variables, _result, context) {
+      context.client.invalidateQueries({ queryKey: ['groups', 'one', variables.id, 'messages'] })
+    },
+  })
+}
