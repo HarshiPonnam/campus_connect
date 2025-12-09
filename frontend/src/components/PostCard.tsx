@@ -120,7 +120,9 @@ function Comment({ post, comment }: { post: Post; comment: Comment }) {
       </div>
       {comment.replies.length > 0 &&
         <div className="border-t-2 border-fuchsia-200 dark:border-stone-800 p-4 flex flex-col space-y-2">
-          {comment.replies.map(reply =>
+          {comment.replies
+            .filter(reply => !auth.user?.user.blockedUsers?.includes(reply.user))
+            .map(reply =>
             <div className={commentStyles()}>
               <div className="p-2">
                 <div className="flex flex-row space-x-2 items-baseline">
