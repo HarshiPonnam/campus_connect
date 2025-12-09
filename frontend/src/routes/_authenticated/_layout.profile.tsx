@@ -1,11 +1,17 @@
-import { useState } from "react"
+import { FormEvent, useState } from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Button } from "~/ui/Button"
-import { useAuthContext } from "~/api/hooks"
+import { Profile, useAuthContext, useGetMyProfile, useUpdateProfile } from "~/api/hooks"
+import { TextField, TextAreaField } from "~/ui/TextField"
+import { StandardErrorBox } from "~/ui/ErrorBox"
+import { twMerge } from 'tailwind-merge'
+import { Form } from "~/ui/Form"
 
 export const Route = createFileRoute("/_authenticated/_layout/profile")({
   component: ProfilePage,
 })
+
+const borderClasses = "border border-2 shadow-md border-fuchsia-200 dark:border-stone-800 dark:bg-stone-800/50 bg-fuchsia-200/50 rounded-lg p-4"
 
 /* ----------------------------- Types ----------------------------- */
 
@@ -18,73 +24,96 @@ type EditableFieldProps = {
 
 /* ----------------------------- Page ----------------------------- */
 
-function ProfilePage() {
-  const { user } = useAuthContext()
-  const [isEditing, setIsEditing] = useState(false)
+function ProfileFields({ profileData }: { profileData: Profile }) {
+  const [major, setMajor] = useState(profileData.major)
+  const [department, setDepartment] = useState(profileData.department)
+  const [year, setYear] = useState(profileData.year)
+  const [bio, setBio] = useState(profileData.bio)
+  const updateProfile = useUpdateProfile()
 
-  if (!user) {
-    return <div className="p-6">Not authenticated</div>
+  const dirty = major != profileData.major || department != profileData.department || year != profileData.year || bio != profileData.bio
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!e.currentTarget.checkValidity()) {
+      return
+    }
+
+    const result = await updateProfile.mutateAsync({
+      major,
+      department,
+      year,
+      bio,
+    })
+
+    setMajor(result.data.major)
+    setDepartment(result.data.department)
+    setYear(result.data.year)
+    setBio(result.data.bio)
+  };
+
+  return (
+    <div className={twMerge(borderClasses, "space-y-4")}>
+      <Form onSubmit={handleSubmit}>
+        <TextField label="Major" value={major} onChange={setMajor} placeholder="Unspecified" />
+        <TextField label="Department" value={department} onChange={setDepartment} placeholder="Unspecified" />
+        <TextField label="Year" value={year} onChange={setYear} placeholder="Unspecified" />
+        <TextAreaField label="Bio" value={bio} onChange={setBio} placeholder="Write about yourself..." />
+
+        <Button variant="secondary" type="submit" isPending={updateProfile.isPending} isDisabled={!dirty}>
+          Save Profile
+        </Button>
+
+        <StandardErrorBox explanation="Failed to update profile" error={updateProfile.error} />
+      </Form>
+    </div>
+  )
+}
+
+function ProfilePage() {
+  const user = useAuthContext().user!.user
+  const profile = useGetMyProfile()
+  const profileData = profile.data?.data
+
+  if (profile.isLoading) {
+    return <p className="mt-8">Loading your profile…</p>;
   }
 
-  const profile = user.user
+  if (profile.isError) {
+    return <StandardErrorBox explanation="Failed to load profile" error={profile.error} />
+  }
+
+  if (profileData === undefined) {
+    throw new Error("should be defined if it's not loading or errored")
+  }
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 space-y-6">
       {/* Header */}
       <div className="flex items-center space-x-4">
         <div className="h-16 w-16 rounded-full bg-fuchsia-500 text-white flex items-center justify-center text-2xl font-bold">
-          {profile.name?.[0]}
+          {user.name[0]}
         </div>
         <div>
-          <h1 className="text-2xl font-bold">{profile.name}</h1>
-          <p className="text-sm opacity-70">{profile.email}</p>
+          <h1 className="text-2xl font-bold">{user.name}</h1>
+          <p className="text-sm opacity-70">{user.email}</p>
         </div>
       </div>
 
       {/* Profile Fields */}
-      <div className="border rounded-lg p-4 space-y-4">
-        <EditableField label="Major" value={profile.major} isEditing={isEditing} />
-        <EditableField label="Department" value={profile.department} isEditing={isEditing} />
-        <EditableField label="Year" value={profile.year} isEditing={isEditing} />
-        <EditableField
-          label="Bio"
-          value={profile.bio}
-          isEditing={isEditing}
-          multiline
-        />
-      </div>
+      <ProfileFields profileData={profileData} />
 
       {/* Stats */}
-      {profile.postsCount !== undefined && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-          <Stat label="Posts" value={profile.postsCount} />
-          <Stat label="Likes Given" value={profile.likesGivenCount} />
-          <Stat label="Likes Received" value={profile.likesReceivedCount} />
-          <Stat label="Comments" value={profile.commentsReceivedCount} />
-        </div>
-      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <Stat label="Posts" value={profileData.postsCount} />
+        <Stat label="Likes Given" value={profileData.likesGivenCount} />
+        <Stat label="Likes Received" value={profileData.likesReceivedCount} />
+        <Stat label="Comments" value={profileData.commentsReceivedCount} />
+      </div>
 
       {/* Actions */}
 
-      <Link to="/"
-      className="text-sm underline hover:text-fuchsia-600">
-        ← Back
-        </Link>
-
       <div className="flex items-center space-x-4">
-        {isEditing ? (
-          <>
-            <Button onPress={() => setIsEditing(false)}>Save</Button>
-            <Button variant="secondary" onPress={() => setIsEditing(false)}>
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <Button variant="secondary" onPress={() => setIsEditing(true)}>
-            Edit Profile
-          </Button>
-        )}
-
         <Link to="/" className="text-sm underline">
           Settings
         </Link>
@@ -108,18 +137,18 @@ function EditableField({
       <div className="text-sm font-medium opacity-70">{label}</div>
 
       {!isEditing ? (
-        <div className="text-gray-800">{value || "—"}</div>
+        <div className="opacity-50">{value || "—"}</div>
       ) : multiline ? (
-        <textarea
-          className="w-full border rounded p-2"
+        <TextAreaField
+          className="w-full"
           value={localValue}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={setLocalValue}
         />
       ) : (
-        <input
-          className="w-full border rounded p-2"
+        <TextField
+          className="w-full"
           value={localValue}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={setLocalValue}
         />
       )}
     </div>
@@ -129,7 +158,7 @@ function EditableField({
 function Stat({ label, value }: { label: string; value?: number }) {
   if (value === undefined) return null
   return (
-    <div className="border rounded-lg p-3">
+    <div className={borderClasses}>
       <div className="text-xl font-bold">{value}</div>
       <div className="text-xs opacity-70">{label}</div>
     </div>

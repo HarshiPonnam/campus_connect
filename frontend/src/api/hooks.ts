@@ -1114,3 +1114,134 @@ export function useCreateGroupMessage() {
     },
   })
 }
+
+export type Profile = {
+  id: string
+  name: string
+  email: string
+  createdAt: Date
+
+  major: string
+  department: string
+  year: string
+  bio: string
+  interests: string[]
+
+  notificationSettings: {
+    likes: boolean
+    comments: boolean
+    replies: boolean
+    system: boolean
+  }
+
+  postsCount: number
+  likesGivenCount: number
+  likesReceivedCount: number
+  commentsReceivedCount: number
+}
+
+const profile = strictObject({
+  id: string(),
+  name: string(),
+  email: string(),
+  createdAt: parseDate,
+
+  major: string(),
+  department: string(),
+  year: string(),
+  bio: string(),
+  interests: array(string()),
+
+  notificationSettings: strictObject({
+    likes: boolean(),
+    comments: boolean(),
+    replies: boolean(),
+    system: boolean(),
+  }),
+
+  postsCount: number(),
+  likesGivenCount: number(),
+  likesReceivedCount: number(),
+  commentsReceivedCount: number(),
+})
+
+export type GetMyProfileResponse = Profile
+
+export function useGetMyProfile() {
+  const auth = useAuthContext()
+
+  return useQuery({
+    queryKey: ['users', 'me'] as const,
+    queryFn: (): Promise<OkResponse<GetMyProfileResponse>> => api({
+      endpoint: `/users/me`,
+      schema: response(profile),
+      authContext: auth,
+      method: "GET",
+    }),
+  })
+}
+
+export type UpdateProfileRequest = {
+  major?: string
+  department?: string
+  year?: string
+  bio?: string
+  interests?: string[]
+}
+
+export type UpdateProfileResponse = {
+  id: string
+  name: string
+  email: string
+  createdAt: Date
+
+  major: string
+  department: string
+  year: string
+  bio: string
+  interests: string[]
+
+  notificationSettings: {
+    likes: boolean
+    comments: boolean
+    replies: boolean
+    system: boolean
+  }
+}
+
+const updateProfileResponse = strictObject({
+  id: string(),
+  name: string(),
+  email: string(),
+  createdAt: parseDate,
+
+  major: string(),
+  department: string(),
+  year: string(),
+  bio: string(),
+  interests: array(string()),
+
+  notificationSettings: strictObject({
+    likes: boolean(),
+    comments: boolean(),
+    replies: boolean(),
+    system: boolean(),
+  }),
+})
+
+export function useUpdateProfile() {
+  const auth = useAuthContext()
+
+  return useMutation({
+    mutationFn: (data: UpdateProfileRequest): Promise<OkResponse<UpdateProfileResponse>> => api({
+      endpoint: `/users/me/profile`,
+      schema: response(updateProfileResponse),
+      authContext: auth,
+      method: "PUT",
+      body: data,
+    }),
+    onSuccess(_data, _variables, _result, context) {
+      context.client.invalidateQueries({ queryKey: ['users', 'me'] })
+    },
+  })
+}
