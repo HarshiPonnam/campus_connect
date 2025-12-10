@@ -29,10 +29,10 @@ export default function BlockedUsersTab() {
       )}
 
       {blockedUserData &&
-        <GridList items={blockedUserData}>
+        <GridList items={blockedUserData} renderEmptyState={() => <div className="text-center opacity-80 p-4">You have no blocked users</div>}>
           {item =>
             <GridListItem>
-              {item.name}
+              <div className="text-xl">{item.name}</div>
               <DialogTrigger>
                 <Button variant="icon">Unblock</Button>
                 <Modal isDismissable>

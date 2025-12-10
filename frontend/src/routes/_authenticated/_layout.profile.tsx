@@ -1,12 +1,16 @@
 import { FormEvent, useState } from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { Button } from "~/ui/Button"
-import { Profile, useAuthContext, useChangePassword, useGetMyProfile, useUpdateProfile, useUpdateSettings } from "~/api/hooks"
+import { Profile, useAuthContext, useChangePassword, useDeleteAccount, useGetMyProfile, useUpdateProfile, useUpdateSettings } from "~/api/hooks"
 import { TextField, TextAreaField } from "~/ui/TextField"
 import { StandardErrorBox } from "~/ui/ErrorBox"
 import { twMerge } from 'tailwind-merge'
 import { Form } from "~/ui/Form"
 import { Checkbox } from "~/ui/Checkbox"
+import BlockedUsersTab from "~/components/BlockedUsersTab"
+import { DialogTrigger, Heading } from "react-aria-components"
+import { Modal } from "~/ui/Modal"
+import { Dialog } from "~/ui/Dialog"
 
 export const Route = createFileRoute("/_authenticated/_layout/profile")({
   component: ProfilePage,
@@ -162,6 +166,46 @@ function PasswordSettings() {
   )
 }
 
+function BlockedUsers() {
+  return (
+    <div className={twMerge(borderClasses, "space-y-4")}>
+      <BlockedUsersTab />
+    </div>
+  )
+}
+
+function DeleteAccount() {
+  const deleteAccount = useDeleteAccount()
+
+  return (
+    <div className={twMerge(borderClasses, "space-y-4")}>
+      <DialogTrigger>
+        <Button variant="destructive">Delete Account</Button>
+        <Modal isDismissable>
+          <Dialog>
+            <Heading slot="title" className="text-xl font-bold pb-4">Delete your account?</Heading>
+
+            <div className="p-4">
+              <p>
+                This will remove all of your content, and cannot be reversed.
+              </p>
+            </div>
+
+            <div className="flex flex-col space-y-2 pt-4">
+              <Button variant="destructive" onPress={() => deleteAccount.mutate()} isPending={deleteAccount.isPending}>
+                Delete Account
+              </Button>
+              <Button variant="secondary" slot="close">
+                Cancel
+              </Button>
+            </div>
+          </Dialog>
+        </Modal>
+      </DialogTrigger>
+    </div>
+  )
+}
+
 function ProfilePage() {
   const user = useAuthContext().user!.user
   const profile = useGetMyProfile()
@@ -199,6 +243,10 @@ function ProfilePage() {
       <NotificationSettings profileData={profileData} />
 
       <PasswordSettings />
+
+      <BlockedUsers />
+
+      <DeleteAccount />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
