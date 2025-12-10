@@ -268,81 +268,111 @@ export async function getBlockedUsers(req, res, next) {
  * GET /api/users/discover
  * Find similar people: same major/department + overlapping interests.
  */
+// server/controllers/user.controller.js
+
 export async function discoverPeople(req, res, next) {
   try {
-    const currentUserId = req.user._id;
-    const currentUser = await User.findById(currentUserId).lean();
+    const meId = req.user._id;
+    const q = String(req.query.q || "").trim().toLowerCase();
 
-    if (!currentUser) {
-      return res.status(404).json({ ok: false, error: 'User not found' });
+    // Get current user (for major, interests, etc.)
+    const me = await User.findById(meId).lean();
+    if (!me) {
+      return res.status(404).json({ ok: false, error: "User not found" });
     }
 
-    const blockedIds = Array.isArray(currentUser.blockedUsers)
-      ? currentUser.blockedUsers.map(id => String(id))
-      : [];
+    const blockedIds = me.blockedUsers || [];
 
-    const others = await User.find({
-      _id: { $ne: currentUserId },
+    // Base query: not me, not deleted, not blocked
+    const baseQuery = {
+      _id: { $ne: meId, $nin: blockedIds },
       isDeleted: { $ne: true },
-    }).lean();
+    };
 
-    const myMajor = (currentUser.major || '').toLowerCase();
-    const myDept = (currentUser.department || '').toLowerCase();
-    const myInterests = new Set(
-      Array.isArray(currentUser.interests)
-        ? currentUser.interests.map(i => i.toLowerCase().trim()).filter(Boolean)
-        : []
-    );
+    const candidates = await User.find(baseQuery).lean();
 
-    const scored = [];
-
-    for (const u of others) {
-      const uid = String(u._id);
-      if (blockedIds.includes(uid)) continue;
-
+    const scored = candidates.map((u) => {
       let score = 0;
 
-      if (myMajor && u.major && myMajor === String(u.major).toLowerCase()) {
+      // ---------- similarity score ----------
+      // Same major
+      if (u.major && me.major && u.major === me.major) {
         score += 3;
       }
-      if (myDept && u.department && myDept === String(u.department).toLowerCase()) {
+
+      // Same department
+      if (u.department && me.department && u.department === me.department) {
         score += 2;
       }
 
-      let overlapCount = 0;
-      if (Array.isArray(u.interests)) {
-        for (const it of u.interests) {
-          const normalized = String(it).toLowerCase().trim();
-          if (normalized && myInterests.has(normalized)) {
-            overlapCount += 1;
-          }
-        }
+      // Same year (Freshman, Sophomore, etc.)
+      if (u.year && me.year && u.year === me.year) {
+        score += 1;
       }
-      score += overlapCount;
 
-      if (score === 0) continue;
+      // Overlapping interests
+      if (Array.isArray(me.interests) && Array.isArray(u.interests)) {
+        const overlap = u.interests.filter((interest) =>
+          me.interests.includes(interest)
+        ).length;
+        score += overlap * 2; // each shared interest gives +2
+      }
 
-      scored.push({
-        id: uid,
-        name: u.name,
-        email: u.email,
-        major: u.major || '',
-        department: u.department || '',
-        year: u.year || '',
-        bio: u.bio || '',
-        interests: Array.isArray(u.interests) ? u.interests : [],
-        score,
-      });
-    }
+      // ---------- search matching ----------
+      let matchesSearch = !q; // if no q, we consider everyone and then filter by score
 
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.name.localeCompare(b.name);
+      const lowerName = String(u.name || "").toLowerCase();
+      const lowerEmail = String(u.email || "").toLowerCase();
+      const lowerMajor = String(u.major || "").toLowerCase();
+      const lowerDept = String(u.department || "").toLowerCase();
+      const lowerYear = String(u.year || "").toLowerCase();
+      const lowerBio = String(u.bio || "").toLowerCase();
+      const interestsStr = Array.isArray(u.interests)
+        ? u.interests.join(" ").toLowerCase()
+        : "";
+
+      if (
+        q &&
+        (
+          lowerName.includes(q) ||          // search by name
+          lowerEmail.includes(q) ||         // search by email
+          lowerMajor.includes(q) ||         // search by major
+          lowerDept.includes(q) ||          // search by department
+          lowerYear.includes(q) ||          // search by year
+          lowerBio.includes(q) ||           // search by bio
+          interestsStr.includes(q)          // search by interest keyword
+        )
+      ) {
+        matchesSearch = true;
+        score += 5; // boost for matching the search term
+      }
+
+      return { user: u, score, matchesSearch };
     });
 
-    const limited = scored.slice(0, 50);
+    const filtered = scored
+      // keep only people that match the search (or everybody if no q)
+      .filter((x) => x.matchesSearch)
+      // if there's no q, require at least some similarity score
+      .filter((x) => q ? true : x.score > 0);
 
-    return res.json({ ok: true, data: limited });
+    // Sort best → worst based on score
+    filtered.sort((a, b) => b.score - a.score);
+
+    return res.json({
+      ok: true,
+      data: filtered.map(({ user, score }) => ({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        major: user.major || "",
+        department: user.department || "",
+        year: user.year || "",
+        bio: user.bio || "",
+        interests: user.interests || [],
+        score,
+      })),
+    });
   } catch (err) {
     next(err);
   }
