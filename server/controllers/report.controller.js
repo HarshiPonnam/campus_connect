@@ -8,6 +8,7 @@ import { Report } from "../models/Report.js";
  * POST /api/reports/post/:postId
  * Body: { reason? }
  */
+// server/controllers/report.controller.js
 export async function reportPost(req, res, next) {
   try {
     const { postId } = req.params;
@@ -30,6 +31,13 @@ export async function reportPost(req, res, next) {
       reason: reason || "",
       status: "pending",
     });
+
+    // New: auto-block the reported user for the reporter
+    if (reportedUser) {
+      await User.findByIdAndUpdate(reporter._id, {
+        $addToSet: { blockedUsers: reportedUser._id },
+      });
+    }
 
     return res.status(201).json({
       ok: true,
@@ -76,6 +84,27 @@ export async function reportComment(req, res, next) {
     return res.status(201).json({
       ok: true,
       data: report,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Get all reports created by the current logged-in user
+ * GET /api/reports/mine
+ */
+export async function getMyReports(req, res, next) {
+  try {
+    const userId = req.user._id;
+
+    const reports = await Report.find({ reportedBy: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({
+      ok: true,
+      data: reports,
     });
   } catch (err) {
     next(err);
