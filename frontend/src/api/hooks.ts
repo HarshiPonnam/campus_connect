@@ -604,9 +604,10 @@ export type Notification = {
   _id: string
   user: string
   fromUser: string
-  type: "like" | "comment" | "reply"
-  post: string
-  commentId?: string
+  type: "like" | "comment" | "reply" | "direct_message"
+  post?: string | null
+  commentId?: string | null
+  directMessage?: string | null
   message: string
   read: boolean
   createdAt: Date
@@ -618,9 +619,15 @@ const notification = strictObject({
   _id: string(),
   user: string(),
   fromUser: string(),
-  type: union([literal('like'), literal('comment'), literal('reply')]),
-  post: string(),
-  commentId: optional(string()),
+  type: union([
+    literal('like'),
+    literal('comment'),
+    literal('reply'),
+    literal('direct_message'),  
+  ]),
+  post: optional(nullable(string())),
+  commentId: optional(nullable(string())),
+  directMessage: optional(nullable(string())), 
   message: string(),
   read: boolean(),
   createdAt: parseDate,

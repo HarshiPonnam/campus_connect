@@ -124,7 +124,7 @@ function DirectMessagesPanel({ setOpen }: { setOpen(value: boolean): void }) {
           <div>
             <h2 className="font-semibold">Direct chat</h2>
             <p className="text-xs opacity-70">
-              Prototype for 1:1 messaging. History is saved in this browser.
+              Send and receive direct messages with other users.
             </p>
           </div>
           <button

@@ -147,7 +147,6 @@ export function DirectChatWindow({ otherUserEmail }: DirectChatWindowProps) {
     <div className="flex flex-col h-full">
       {/* tiny debug line */}
       <div className="text-[10px] text-stone-500 mb-1">
-        DEBUG email = {otherUserEmail}, id = {otherUserId ?? "resolving…"}
       </div>
 
       {/* History */}
