@@ -1,6 +1,7 @@
 // server/controllers/directMessage.controller.js
 import { DirectMessage, normalizeDirectMessage } from '../models/DirectMessage.js';
 import { User } from '../models/User.js';
+import { Notification } from '../models/Notification.js';
 
 // Helper: send a consistent error response
 function sendError(res, status, message) {
@@ -68,14 +69,31 @@ export async function sendDirectMessage(req, res) {
     const fromId = String(req.user.id);
     const toId = String(otherUserId);
 
+    // 1) Save DM
     const msg = new DirectMessage({
       from: fromId,
       to: toId,
-      content: content.trim(),   // IMPORTANT: uses `content` to match your model
+      content: content.trim(), // IMPORTANT: uses `content` to match your model
     });
 
     const saved = await msg.save();
     const normalized = normalizeDirectMessage(saved);
+
+    // 2) Create notification for the recipient
+    try {
+      await Notification.create({
+        user: toId,                 // recipient
+        fromUser: fromId,           // sender
+        type: "direct_message",    
+        post: null,
+        commentId: null,
+        directMessage: saved._id,   // link to the DM
+        message: `New message from ${req.user.name || req.user.email}`,
+      });
+    } catch (notifyErr) {
+      // Don't fail sending just because notification failed
+      console.error('Failed to create DM notification:', notifyErr);
+    }
 
     return res.json({
       ok: true,
