@@ -1,8 +1,8 @@
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { formatDistanceToNow } from 'date-fns';
 import { Bell, BellDot, Check, MessagesSquare, Search, Users } from 'lucide-react';
-import { createContext, FormEvent, useState } from 'react';
-import { Autocomplete, DialogTrigger, Heading, MenuTrigger, Text } from 'react-aria-components';
+import { createContext, FormEvent, useContext, useState } from 'react';
+import { Autocomplete, DialogTrigger, Heading, MenuTrigger, OverlayTriggerStateContext, Text } from 'react-aria-components';
 import { tv } from 'tailwind-variants';
 import { type Notification, useAuthContext, useGetMyNotifications, useLogout, useMarkAllNotificationsRead, useMarkNotificationRead, useDiscoverUsers } from '~/api/hooks';
 import { CreateGroupForm } from '~/components/CreateGroupForm';
@@ -106,40 +106,35 @@ function DiscoveryDialog() {
   const { isLoading, error, data } = useDiscoverUsers(str)
   const items = data?.data ?? []
   const navigate = useNavigate()
+  const state = useContext(OverlayTriggerStateContext)
 
   return (
-    <Modal isDismissable>
-      <Dialog>
-        <Heading slot="title" className="text-xl font-bold pb-4">Discover Users</Heading>
+    <div className="space-y-4">
+      <Autocomplete>
+        <SearchField aria-label="Search for users" placeholder="Search for users..." value={str} onChange={setStr} />
+        <ListBox items={items} renderEmptyState={() => isLoading ? <ProgressBar
+            label="Loading users..."
+            className="mt-12"
+            isIndeterminate
+          /> : <div className="text-center opacity-80 p-4">Your search returned no results</div>}>
+          {(item) =>
+            <ListBoxItem key={item.id} onAction={() => { navigate({ to: '/profile/$userId', params: { userId: item.id } }); state?.close() }}>
+              <div className="flex flex-row items-center space-x-4">
+                <div className="h-8 w-8 rounded-full bg-fuchsia-500 text-white flex items-center justify-center text-sm font-bold">
+                  {item.name[0]}
+                </div>
+                <div className="flex flex-col">
+                  <Text slot="label" className="text-lg">{item.name}</Text>
+                  <Text slot="description">{item.email} - {item.major}</Text>
+                </div>
+              </div>
+            </ListBoxItem>
+          }
+        </ListBox>
+      </Autocomplete>
 
-        <div className="space-y-4">
-          <Autocomplete>
-            <SearchField aria-label="Search for users" placeholder="Search for users..." value={str} onChange={setStr} />
-            <ListBox items={items} renderEmptyState={() => isLoading ? <ProgressBar
-                label="Loading users..."
-                className="mt-12"
-                isIndeterminate
-              /> : <div className="text-center opacity-80 p-4">Your search returned no results</div>}>
-              {(item) =>
-                <ListBoxItem key={item.id} onAction={() => navigate({ to: '/profile/$userId', params: { userId: item.id } })}>
-                  <div className="flex flex-row items-center space-x-4">
-                    <div className="h-8 w-8 rounded-full bg-fuchsia-500 text-white flex items-center justify-center text-sm font-bold">
-                      {item.name[0]}
-                    </div>
-                    <div className="flex flex-col">
-                      <Text slot="label" className="text-lg">{item.name}</Text>
-                      <Text slot="description">{item.email} - {item.major}</Text>
-                    </div>
-                  </div>
-                </ListBoxItem>
-              }
-            </ListBox>
-          </Autocomplete>
-
-          <StandardErrorBox explanation="Failed to search for users" error={error} />
-        </div>
-      </Dialog>
-    </Modal>
+      <StandardErrorBox explanation="Failed to search for users" error={error} />
+    </div>
   )
 }
 
@@ -149,7 +144,13 @@ function DiscoveryMenu() {
       <Button variant='icon' aria-label='Discover users'>
         <Search />
       </Button>
-      <DiscoveryDialog />
+      <Modal isDismissable>
+        <Dialog>
+          <Heading slot="title" className="text-xl font-bold pb-4">Discover Users</Heading>
+
+          <DiscoveryDialog />
+        </Dialog>
+      </Modal>
     </DialogTrigger>
   )
 }
